@@ -1,0 +1,359 @@
+#include <iostream>
+#include "HeaderTubes.h"
+
+using namespace std;
+
+int main() {
+    TextEditor editor;
+    inisialisasiEditor(editor);
+
+    int pilihan;
+    string inputText, kataDulu, kataBaru;
+    int posisi;
+
+    cout << "Halo! selamat datang di teks editor kelompok satu!" << endl;
+    cout << "                PERATURAN!" << endl;
+    cout << "1. Awali semua teks dari baris pertama (1)." << endl;
+    cout << "2. Jangan lupa barisan ke berapa yang disisipkan." << endl;
+    cout << "3. Selamat menikmati! kontak admin jika ada usulan." << endl;
+
+    do {
+        tampilkanMenu();
+        cin >> pilihan;
+
+        switch (pilihan) {
+            case 1:
+                displayText(editor);
+                break;
+
+            case 2:
+                cout << "Masukkan baris untuk diisi teks: ";
+                cin >> posisi;
+                cin.ignore();
+                cout << "Masukkan teks yang akan di tambah: ";
+                getline(cin, inputText);
+                insertText(editor, posisi, inputText);
+                cout << "Teks berhasil di input!" << endl;
+                break;
+
+            case 3:
+                deleteLine(editor, posisi);
+                cout << "teks dalam baris terakhir berhasil di hapus!" << endl;
+                break;
+
+            case 4:
+                undo(editor);
+                cout << "Teks pada baris terakhir berhasil di undo!" << endl;
+                break;
+
+            case 5:
+                redo(editor);
+                cout << "Teks pada baris terakhir yang di undo berhasil di redo!" << endl;
+                break;
+
+            case 6:
+                cout << "Masukkan kata yang ingin dicari: ";
+                cin>>inputText;
+                searchKata(editor, inputText);
+                break;
+
+            case 7:
+                cout << "Masukkan baris dari teks yang ingin diganti: ";
+                cin >> posisi;
+                cin.ignore();
+                cout << "Masukkan kata yang ingin diganti: ";
+                getline(cin, kataDulu);
+                cout << "Masukkan kata penggantinya: ";
+                getline(cin, kataBaru);
+                gantiKata(editor, posisi, kataDulu, kataBaru);
+                break;
+
+            case 8:
+                cout << "Masukkan posisi baris yang ingin diketahui teksnya: ";
+                cin >> posisi;
+                navigasiBaris(editor, posisi);
+                break;
+
+
+
+            case 9:
+                cout << "Anda telah keluar dari teks editor. Terima kasih!\n";
+                break;
+
+            default:
+                cout << "Pilihan tidak valid, coba lagi.\n";
+        }
+
+    } while (pilihan != 9);
+    menghapusEditor(editor);
+    return 0;
+}
+
+HEADER
+#ifndef HEADERTUBES_H_INCLUDED
+#define HEADERTUBES_H_INCLUDED
+
+#include <string>
+using namespace std;
+
+typedef struct Node* address1;
+typedef struct History* address2;
+struct Node{
+    string text;
+    address1 next;
+};
+
+struct History{
+    //ini redo undo
+    string aksi;
+    int position;
+    string text;
+    address2 next;
+};
+
+struct TextEditor{
+    address1 head;
+    address2 undoHead;
+    address2 redoHead;
+
+};
+void inisialisasiEditor(TextEditor& edit);
+void menghapusEditor(TextEditor& edit);
+void insertText(TextEditor& edit, int position, const string& newText);
+void deleteLine(TextEditor& edit, int position);
+void displayText(TextEditor& edit);
+void undo(TextEditor& edit);
+void redo(TextEditor& edit);
+void searchKata(TextEditor& edit, string kata);
+void gantiKata(TextEditor& edit, int position, string kataDulu, string kataBaru);
+void navigasiBaris(TextEditor& edit, int position); //info baris
+void tampilkanMenu();
+
+#endif // HEADERTUBES_H_INCLUDED
+
+SOURCE
+
+#include <iostream>
+#include "HeaderTubes.h"
+
+using namespace std;
+
+void inisialisasiEditor(TextEditor& edit){
+    edit.head = nullptr;
+    edit.redoHead = nullptr;
+    edit.undoHead = nullptr;
+}
+
+void menghapusEditor(TextEditor& edit){
+    address1 isiEditor = edit.head;
+    while (isiEditor){
+        address1 temp = isiEditor;
+        isiEditor = isiEditor->next;
+        delete temp;
+    }
+
+    address2 isiEditUndo = edit.undoHead;
+    while (isiEditUndo){
+        address2 temp = isiEditUndo;
+        isiEditUndo = isiEditUndo->next;
+        delete temp;
+    }
+
+    isiEditUndo = edit.redoHead;
+    while (isiEditUndo){
+        address2 temp = isiEditUndo;
+        isiEditUndo = isiEditUndo->next;
+        delete temp;
+    }
+}
+
+void insertText(TextEditor& edit, int position, const string& newText){
+    address1 newNode = new Node;
+    newNode->text = newText;
+    newNode->next = nullptr;
+
+    if (position == 1){
+        newNode->next = edit.head;
+        edit.head = newNode;
+    } else {
+        address1 isiEditor = edit.head;
+        for (int i = 1; isiEditor && i < position - 1; i++){
+            isiEditor = isiEditor->next;
+        }
+        if (!isiEditor){
+            cout << "Tidak ada baris tersebut untuk menyisipkan teks\n";
+            delete newNode;
+            return;
+        }
+        newNode->next = isiEditor->next;
+        isiEditor->next = newNode;
+    }
+
+    // Menambahkan ke undo stack
+    edit.undoHead = new History{"insert", position, newText, edit.undoHead};
+
+    // Menghapus redo history setelah operasi insert
+    while (edit.redoHead != nullptr){
+        address2 temp = edit.redoHead;
+        edit.redoHead = edit.redoHead->next;
+        delete temp;
+    }
+}
+
+void deleteLine(TextEditor& edit, int position){
+    if (!edit.head){
+        cout << "Tidak ada text didalam editor yang dapat di hapus\n";
+        return;
+    }
+    if (position == 1){
+        address1 temp = edit.head;
+        edit.head = edit.head->next;
+        delete temp;
+    } else {
+        address1 isiEditor = edit.head;
+        for (int i = 1; isiEditor && i < position - 1; i++){
+            isiEditor = isiEditor->next;
+        }
+        if (!isiEditor || !isiEditor->next){
+            cout << "Posisinya tidak dapat di tuju\n";
+            return;
+        }
+        address1 temp = isiEditor->next;
+        isiEditor->next = isiEditor->next->next;
+        delete temp;
+    }
+
+    // Menambahkan ke undo stack
+    edit.undoHead = new History{"delete", position, "", edit.undoHead};
+
+    // Menghapus redo history setelah operasi delete
+    while (edit.redoHead){
+        address2 temp = edit.redoHead;
+        edit.redoHead = edit.redoHead->next;
+        delete temp;
+    }
+}
+
+void displayText(TextEditor& edit){
+    if (edit.head == nullptr){
+        cout << "Tidak ada teks dalam editor\n";
+        return;
+    }
+    address1 isiEditor = edit.head;
+    int line = 1;
+    while (isiEditor){
+        cout << "Baris " << line << ": " << isiEditor->text << endl;
+        isiEditor = isiEditor->next;
+        line++;
+    }
+}
+
+void undo(TextEditor& edit){
+    if (!edit.undoHead){
+        cout << "Tidak ada yang bisa di undo\n";
+        return;
+    }
+    address2 lastUndo = edit.undoHead;
+    edit.undoHead = lastUndo->next;
+
+    if (lastUndo->aksi == "insert"){
+        deleteLine(edit, lastUndo->position);
+    } else if (lastUndo->aksi == "delete"){
+        insertText(edit, lastUndo->position, lastUndo->text);
+    }
+
+    edit.redoHead = new History{lastUndo->aksi, lastUndo->position, lastUndo->text, edit.redoHead};
+    delete lastUndo;
+}
+
+void redo(TextEditor& edit){
+    if (!edit.redoHead) {
+        cout << "Tidak ada yang bisa di redo\n";
+        return;
+    }
+    address2 lastRedo = edit.redoHead;
+    edit.redoHead = lastRedo->next;
+
+    if (lastRedo->aksi == "insert") {
+        insertText(edit, lastRedo->position, lastRedo->text);
+    } else if (lastRedo->aksi == "delete") {
+        deleteLine(edit, lastRedo->position);
+    }
+    edit.undoHead = new History{lastRedo->aksi, lastRedo->position, lastRedo->text, edit.undoHead};
+    delete lastRedo;
+}
+
+void searchKata(TextEditor& edit, string kata){
+    address1 isiEditor = edit.head;
+    int line = 1;
+    bool ketemu = false;
+    while (isiEditor != nullptr){
+        if (isiEditor->text == kata){
+            cout << "Ketemu \"" << kata << "\" di baris " << line << ": " << isiEditor->text << endl;
+            ketemu = true;
+        }
+        isiEditor = isiEditor->next;
+        line++;
+    }
+    if (!ketemu) cout << "\"" << kata << "\" tidak ditemukan.\n";
+}
+
+void gantiKata(TextEditor& edit, int position, string kataDulu, string kataBaru){
+    address1 isiEditor = edit.head;
+    for (int i = 1; isiEditor != nullptr && i < position; i++){
+        isiEditor = isiEditor->next;
+    }
+    if (!isiEditor){
+        cout << "Posisinya tidak dapat di tuju\n";
+        return;
+    }
+    int n = kataDulu.length();
+
+    string& baris = isiEditor->text;
+    string barisBaru = "";
+    int i = 0;
+    bool ganti = false;
+
+    while (i < baris.length()){
+        if (baris.substr(i, n) == kataDulu){
+            barisBaru += kataBaru;
+            i += n;
+            ganti = true;
+        } else {
+            barisBaru += baris[i];
+            i++;
+        }
+    }
+    baris = barisBaru;
+    if (ganti){
+        cout << "Diganti kata \"" << kataDulu << "\" dengan \"" << kataBaru << "\" di baris " << position << endl;
+    } else {
+        cout << "\"" << kataDulu << "\" tidak ditemukan dalam baris " << position << ".\n";
+    }
+}
+
+void navigasiBaris(TextEditor& edit, int position){
+    address1 isiEditor = edit.head;
+    for (int i = 1; isiEditor && i < position; i++){
+        isiEditor = isiEditor->next;
+    }
+    if (isiEditor){
+        cout << "Baris " << position << ": " << isiEditor->text << endl;
+    } else {
+        cout << "Baris " << position << " tidak ditemukan\n";
+    }
+}
+
+void tampilkanMenu(){
+    cout << "\n=== Text Editor ===\n";
+    cout << "1. Tampilkan Semua Teks\n";
+    cout << "2. Tambah Teks\n";
+    cout << "3. Hapus Baris\n";
+    cout << "4. Undo Teks\n";
+    cout << "5. Redo Teks\n";
+    cout << "6. Cari Kata\n";
+    cout << "7. Ganti Kata\n";
+    cout << "8. Info dari Baris\n";
+    cout << "9. Keluar\n";
+    cout << "Pilih opsi: ";
+}
